@@ -217,6 +217,7 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
 <button role="tab" data-t="agenda">Agenda</button>
 <button role="tab" data-t="ponto">Ponto</button>
 <button role="tab" data-t="ferias">Férias</button>
+<button role="tab" data-t="atestados">Atestados</button>
 <button role="tab" data-t="relatorios">Relatórios</button>
 <button role="tab" data-t="equipe">Equipe</button>
 </div>
@@ -388,6 +389,25 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
   </div>
 </section>
 
+<section id="atestados" hidden>
+  <div class="card">
+    <h2>Controle de atestados médicos</h2>
+    <p class="mu" style="margin-top:0">Registre o período completo de afastamento. O colaborador aparecerá como afastado na agenda em todos os dias selecionados, inclusive as datas inicial e final.</p>
+    <div class="fg">
+      <label>Colaborador<select id="attEmp"></select></label>
+      <label>Primeiro dia do afastamento<input type="date" id="attStart"></label>
+      <label>Último dia do afastamento<input type="date" id="attEnd"></label>
+      <label>Observação (opcional)<input id="attNote" maxlength="120" placeholder="Ex.: atestado médico"></label>
+    </div>
+    <p class="al e" id="attMsg" role="status"></p>
+    <div class="act"><button class="btn" data-act="addatt">Lançar atestado</button></div>
+  </div>
+  <div class="card">
+    <div class="bar2"><h2>Atestados lançados</h2><span class="badge-soft" id="attCount">0 registros</span></div>
+    <div id="attList"></div>
+  </div>
+</section>
+
 <section id="relatorios" hidden>
   <div class="card">
     <h2>Relatórios</h2>
@@ -452,7 +472,7 @@ const dur=n=>Math.floor(n/60)+':'+pad(n%60);
 const ini=n=>(String(n).trim()[0]||'?').toUpperCase();
 let S={emps:[],evs:[],hols:[],vacations:[],reporter:{name:'',sector:''},cfg:{work:440,lunch:60,maxFirst:360,extra:120,rest11:true}};
 try{const r=JSON.parse(localStorage.getItem(KEY));if(r)S=Object.assign(S,r)}catch(e){}
-const mig=()=>{if(!S.cfg||typeof S.cfg!=='object')S.cfg={};S.cfg=Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},S.cfg);if(!Array.isArray(S.emps))S.emps=[];if(!Array.isArray(S.evs))S.evs=[];if(!Array.isArray(S.hols))S.hols=[];if(!Array.isArray(S.vacations))S.vacations=[];if(!S.reporter||typeof S.reporter!=='object')S.reporter={name:'',sector:''};S.emps.forEach(e=>{if(!e.offs){const o=String(e.off==null?'':e.off);e.offs=[o==='0'?'':o,''];e.sun={m:o==='0'?'all':'none',ref:'',n:3};delete e.off}if(!e.sun)e.sun={m:'none',ref:'',n:3}})};mig();
+const mig=()=>{if(!S.cfg||typeof S.cfg!=='object')S.cfg={};S.cfg=Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},S.cfg);if(!Array.isArray(S.emps))S.emps=[];if(!Array.isArray(S.evs))S.evs=[];if(!Array.isArray(S.hols))S.hols=[];if(!Array.isArray(S.vacations))S.vacations=[];if(!Array.isArray(S.medicalLeaves))S.medicalLeaves=[];if(!S.reporter||typeof S.reporter!=='object')S.reporter={name:'',sector:''};S.emps.forEach(e=>{if(!e.offs){const o=String(e.off==null?'':e.off);e.offs=[o==='0'?'':o,''];e.sun={m:o==='0'?'all':'none',ref:'',n:3};delete e.off}if(!e.sun)e.sun={m:'none',ref:'',n:3}})};mig();
 let tab='dashboard',cur=new Date(),sel=iso(new Date()),dashSelected=iso(new Date()),editId=null,delArm=null,hm={},tmr=null,dbDoc=null;
 let agendaMode='initials';try{agendaMode=localStorage.getItem('cleitoncalc.agendaMode')||'initials'}catch(e){}
 const today=iso(new Date());
@@ -489,7 +509,7 @@ S.emps.forEach(e=>{if(e.scheduleType==='12x36'){if(is12x36Off(e,d))o.push({e,k:'
 S.evs.forEach(v=>{const e=S.emps.find(x=>x.id===v.emp);if(!e)return;
 if(v.date===d)o.push({e,k:v.type,v,t:v.type==='comp'?'Folga de feriado referente a '+dm(v.ref):'Folga'+(v.note?' ('+v.note+')':'')});
 else if(v.type==='comp'&&v.ref===d)o.push({e,k:'trab',v,t:'Trabalhou no feriado'})});
-S.vacations.forEach(v=>{if(v.start<=d&&v.end>=d){const e=S.emps.find(x=>x.id===v.emp);if(e)o.push({e,k:'ferias',v,t:'Em férias'+(v.note?' — '+v.note:'')})}});return o}
+S.vacations.forEach(v=>{if(v.start<=d&&v.end>=d){const e=S.emps.find(x=>x.id===v.emp);if(e)o.push({e,k:'ferias',v,t:'Em férias'+(v.note?' — '+v.note:'' )})}});(S.medicalLeaves||[]).forEach(v=>{if(v.start<=d&&v.end>=d){const e=S.emps.find(x=>x.id===v.emp);if(e)o.push({e,k:'atestado',v,t:'Afastado por atestado'+(v.note?' — '+v.note:'')})}});return o}
 
 
 function dashboard(){
@@ -667,6 +687,13 @@ function ferias(){
   $('#vacList').innerHTML=list.length?list.map(v=>{const e=S.emps.find(x=>x.id===v.emp),todayKey=iso(new Date()),status=v.end<todayKey?'Encerradas':v.start>todayKey?'Programadas':'Em andamento';return `<div class="vacation-card"><div style="display:flex;justify-content:space-between;gap:8px;align-items:start"><div><strong>${esc(e?e.name:'Colaborador removido')}</strong><div class="mu" style="font-size:.85rem">${dm(v.start)}/${v.start.slice(0,4)} até ${dm(v.end)}/${v.end.slice(0,4)}</div>${v.note?`<small class="mu">${esc(v.note)}</small>`:''}<div style="margin-top:6px"><span class="vacation-status">${status}</span></div></div><button class="lk rm" data-act="delvac" data-id="${esc(v.id)}">Remover</button></div></div>`}).join(''):'<div class="empty">Nenhum período de férias cadastrado.</div>';
 }
 
+function atestados(){
+  const select=$('#attEmp');if(select){const prev=select.value;select.innerHTML=S.emps.map(e=>`<option value="${esc(e.id)}">${esc(e.name)}</option>`).join('')||'<option value="">Cadastre um colaborador primeiro</option>';if(prev&&S.emps.some(e=>e.id===prev))select.value=prev;}
+  const rows=(S.medicalLeaves||[]).slice().sort((a,b)=>a.start.localeCompare(b.start));
+  $('#attCount').textContent=rows.length+' '+(rows.length===1?'registro':'registros');
+  $('#attList').innerHTML=rows.length?rows.map(v=>{const e=S.emps.find(x=>x.id===v.emp),now=iso(new Date()),status=v.end<now?'Encerrado':v.start>now?'Programado':'Em andamento';return `<div class="vacation-card" style="border-color:var(--rd);background:color-mix(in srgb,var(--rd) 5%,var(--sf))"><div style="display:flex;justify-content:space-between;gap:8px;align-items:start"><div><strong>${esc(e?e.name:'Colaborador removido')}</strong><div class="mu" style="font-size:.85rem">${dm(v.start)}/${v.start.slice(0,4)} até ${dm(v.end)}/${v.end.slice(0,4)}</div>${v.note?`<small class="mu">${esc(v.note)}</small>`:''}<div style="margin-top:6px"><span class="vacation-status">${status}</span></div></div><button class="lk rm" data-act="delatt" data-id="${esc(v.id)}">Remover</button></div></div>`}).join(''):'<div class="empty">Nenhum atestado cadastrado.</div>';
+}
+
 function equipe(){
 const ed=S.emps.find(e=>e.id===editId)||{name:'',role:'',color:COLORS[S.emps.length%COLORS.length],offs:['',''],sun:{m:'none',ref:'',n:3}};
 const wo=v=>'<option value="">Nenhuma</option>'+[0,1,2,3,4,5,6].map(i=>`<option value="${i}"${String(v)===String(i)?' selected':''}>${i===0?'Domingo':DS[i]}</option>`).join('');
@@ -810,7 +837,7 @@ function reportIndividual(){
   for(let n=1;n<=days;n++){
     const date=month+'-'+pad(n),dt=new Date(date+'T00:00:00'),entries=offs(date).filter(x=>x.e.id===id),holiday=H(y)[date];
     const workedHoliday=entries.some(x=>x.k==='trab'),off=entries.find(x=>x.k==='ferias')||entries.find(x=>x.k!=='trab');
-    let status=off?off.t:workedHoliday?'Trabalhou no feriado':'Trabalho previsto';
+    let status=entries.find(x=>x.k==='atestado')?.t||off?.t||(workedHoliday?'Trabalhou no feriado':'Trabalho previsto');
     rows.push(`<tr class="${holiday?'holiday':''}"><td>${pad(n)}/${pad(m)} · ${DS[dt.getDay()]}</td><td>${holiday?esc(holiday):'—'}</td><td>${esc(status)}</td></tr>`);
   }
   const weekly=emp.scheduleType==='12x36'?'12x36 · trabalha um dia e descansa no outro · início '+(emp.scheduleStart||'não definido')+' às '+(emp.scheduleTime||'07:00'):(emp.offs||[]).filter(x=>x!=='').map(x=>DS[+x]).join(' / ')||'Não definida';
@@ -834,8 +861,8 @@ function reportHolidays(){
 
 function view(){
 document.querySelectorAll('.tabs button').forEach(b=>b.setAttribute('aria-selected',b.dataset.t===tab));
-['dashboard','agenda','ponto','ferias','relatorios','equipe'].forEach(t=>$('#'+t).hidden=t!==tab)}
-function render(){dashboard();agenda();ferias();equipe();renderReportSelectors();sync();syncReporterFields();calc();view()}
+['dashboard','agenda','ponto','ferias','atestados','relatorios','equipe'].forEach(t=>$('#'+t).hidden=t!==tab)}
+function render(){dashboard();agenda();ferias();atestados();equipe();renderReportSelectors();sync();syncReporterFields();calc();view()}
 
 document.addEventListener('click',e=>{
 const modeButton=e.target.closest('[data-agenda-mode]');
@@ -856,6 +883,14 @@ switch(D.act){
  case'reportScale':{const month=$('#repScaleMonth').value;if(!month)return alert('Selecione o mês.');const old=cur;const [y,m]=month.split('-').map(Number);cur=new Date(y,m-1,1);pdfEscala();cur=old;break}
  case'reportIndividual':reportIndividual();break;
  case'reportHolidays':reportHolidays();break;
+ case'addatt':{const emp=$('#attEmp').value,start=$('#attStart').value,end=$('#attEnd').value,note=$('#attNote').value.trim();
+if(!emp)return say('#attMsg','Cadastre um colaborador antes de lançar um atestado.');
+if(!start||!end)return say('#attMsg','Informe o primeiro e o último dia do afastamento.');
+if(end<start)return say('#attMsg','A data final não pode ser anterior à data inicial.');
+const overlap=(S.medicalLeaves||[]).some(v=>v.emp===emp&&start<=v.end&&end>=v.start);
+if(overlap)return say('#attMsg','Este período se sobrepõe a outro atestado do colaborador.');
+S.medicalLeaves.push({id:uid(),emp,start,end,note});save();$('#attStart').value='';$('#attEnd').value='';$('#attNote').value='';say('#attMsg','Atestado lançado com sucesso.');atestados();agenda();dashboard();break}
+ case'delatt':if(confirm('Remover este lançamento de atestado?')){S.medicalLeaves=S.medicalLeaves.filter(v=>v.id!==D.id);save();atestados();agenda();dashboard()}break;
  case'addvac':{const emp=$('#vacEmp').value,start=$('#vacStart').value,end=$('#vacEnd').value,note=$('#vacNote').value.trim();if(!emp)return say('#vacMsg','Cadastre um colaborador antes de registrar férias.');if(!start||!end)return say('#vacMsg','Informe a data inicial e a data final.');if(end<start)return say('#vacMsg','A data final não pode ser anterior à data inicial.');const overlap=S.vacations.some(v=>v.emp===emp&&start<=v.end&&end>=v.start);if(overlap)return say('#vacMsg','Este período se sobrepõe a férias já cadastradas para o colaborador.');S.vacations.push({id:uid(),emp,start,end,note});save();$('#vacStart').value='';$('#vacEnd').value='';$('#vacNote').value='';say('#vacMsg','Período de férias cadastrado com sucesso.');ferias();agenda();dashboard();equipe();break}
  case'delvac':if(confirm('Remover este período de férias?')){S.vacations=S.vacations.filter(v=>v.id!==D.id);save();ferias();agenda();dashboard();equipe()}break;
  case'pdf':pdfEscala();break;
@@ -942,7 +977,7 @@ $('#backupFile').addEventListener('change',async e=>{
     if(!data||!Array.isArray(data.emps)||!Array.isArray(data.evs)||!Array.isArray(data.hols)||!data.cfg)
       throw new Error('Formato de backup inválido.');
     if(!confirm('Restaurar este backup substituirá os dados atuais do CleitonCalc. Deseja continuar?'))return;
-    S={emps:data.emps,evs:data.evs,hols:data.hols,vacations:Array.isArray(data.vacations)?data.vacations:[],cfg:Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},data.cfg)};
+    S={emps:data.emps,evs:data.evs,hols:data.hols,vacations:Array.isArray(data.vacations)?data.vacations:[],medicalLeaves:Array.isArray(data.medicalLeaves)?data.medicalLeaves:[],cfg:Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},data.cfg)};
     mig();hm={};editId=null;save();render();
     $('#backupMsg').textContent='Backup restaurado com sucesso.';
   }catch(err){$('#backupMsg').textContent='Não foi possível restaurar: '+err.message;}
