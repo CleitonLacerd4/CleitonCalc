@@ -52,7 +52,7 @@ label input,label select{margin-top:4px;color:var(--ink);font-weight:400}
 .bar2 h2{margin:0;text-transform:capitalize}
 .bar2 button{border:1px solid var(--ln);background:var(--sf);border-radius:10px;min-width:42px;min-height:42px;font-weight:700;cursor:pointer}
 .grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
-.wd{font-size:.72rem;color:var(--mu);text-align:center;font-weight:600;padding:2px 0}
+.wd{font-size:.62rem;line-height:1.1;color:var(--mu);text-align:center;font-weight:600;padding:3px 1px;overflow-wrap:anywhere;word-break:normal}
 .c{position:relative;min-height:64px;border:1px solid transparent;border-radius:8px;background:var(--bg);padding:4px;text-align:left;cursor:pointer;display:flex;flex-direction:column;gap:2px;overflow:hidden;min-width:0}
 .c.out{opacity:.45}
 .c.hol{background:var(--ams)}
@@ -148,6 +148,15 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
 .day-summary small{font-size:.54rem;color:var(--mu);font-weight:600}
 .agenda-empty{padding:18px;border:1px dashed var(--ln);border-radius:10px;color:var(--mu);text-align:center}
 @media(max-width:420px){.agenda-list-item{padding:9px}.agenda-list-date{min-width:46px}.agenda-count{font-size:.72rem;padding:4px 7px}}
+
+/* Ajustes de proporção para os botões da lista de colaboradores */
+.ls li .lk{flex:0 0 auto;padding:5px 7px;font-size:.84rem;line-height:1.2;white-space:nowrap}
+.ls li .lk.rm{padding-left:6px;padding-right:6px}
+@media(max-width:420px){
+  .ls li{gap:6px}
+  .ls li .lk{font-size:.78rem;padding:5px 5px}
+}
+
 </style>
 </head>
 <body>
@@ -337,7 +346,7 @@ const $=s=>document.querySelector(s),pad=n=>String(n).padStart(2,'0');
 const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const iso=d=>d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
 const dm=d=>d.slice(8)+'/'+d.slice(5,7);
-const DS=['dom','seg','ter','qua','qui','sex','sáb'],MS=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
+const DS=['domingo','segunda-feira','terça-feira','quarta-feira','quinta-feira','sexta-feira','sábado'],MS=['janeiro','fevereiro','março','abril','maio','junho','julho','agosto','setembro','outubro','novembro','dezembro'];
 const COLORS=['#0e6b52','#c6362b','#2f5fd0','#b87400','#8a3fb5','#0f8fa3','#b5527a','#6b7a1f'];
 const KEY='cleitoncalc.v1',uid=()=>Math.random().toString(36).slice(2,9);
 
@@ -362,11 +371,20 @@ const e=easter(y);m[iso(addD(e,-2))]='Sexta-feira Santa';m[iso(addD(e,60))]='Cor
 S.hols.forEach(h=>{if(h.date.slice(0,4)==y)m[h.date]=h.name});return m}
 const H=y=>hm[y]||(hm[y]=hmap(y));
 
+function is12x36Off(e,d){
+  if(e.scheduleType!=='12x36'||!e.scheduleStart)return false;
+  const firstDay=new Date(e.scheduleStart+'T00:00:00');
+  const currentDay=new Date(d+'T00:00:00');
+  const diff=Math.round((currentDay-firstDay)/86400000);
+  if(diff<0)return false;
+  // The first date is a work day; the next is a rest day, repeating every 48 hours.
+  return diff%2===1;
+}
 function sunOff(e,d){if((e.offs||[]).some(x=>x!==''&&+x===0))return'';const s=e.sun||{};if(s.m==='all')return'Folga semanal fixa (domingo)';if(s.m==='cycle'&&s.ref&&s.n>1){const w=Math.round((new Date(d+'T00:00')-new Date(s.ref+'T00:00'))/6048e5);if(w%s.n===0)return'Folga semanal – domingo (rodízio)'}return''}
 function vacationOn(empId,d){return (S.vacations||[]).find(v=>v.emp===empId&&v.start<=d&&v.end>=d)}
 function vacationStatus(empId,d){const v=vacationOn(empId,d);return v?'Férias'+(v.note?' ('+v.note+')':''):''}
 function offs(d){const w=new Date(d+'T00:00').getDay(),o=[];
-S.emps.forEach(e=>{const fixedSunday=(e.offs||[]).some(x=>x!==''&&+x===0);if((e.offs||[]).some(x=>x!==''&&+x===w))o.push({e,k:'sem',t:w===0?'Folga semanal fixa (domingo)':'Folga semanal fixa'});if(w===0&&!fixedSunday){const t=sunOff(e,d);if(t)o.push({e,k:'sem',t})}});
+S.emps.forEach(e=>{if(e.scheduleType==='12x36'){if(is12x36Off(e,d))o.push({e,k:'sem',t:'Descanso da escala 12x36'});return}const fixedSunday=(e.offs||[]).some(x=>x!==''&&+x===0);if((e.offs||[]).some(x=>x!==''&&+x===w))o.push({e,k:'sem',t:w===0?'Folga semanal fixa (domingo)':'Folga semanal fixa'});if(w===0&&!fixedSunday){const t=sunOff(e,d);if(t)o.push({e,k:'sem',t})}});
 S.evs.forEach(v=>{const e=S.emps.find(x=>x.id===v.emp);if(!e)return;
 if(v.date===d)o.push({e,k:v.type,v,t:v.type==='comp'?'Folga de feriado referente a '+dm(v.ref):'Folga'+(v.note?' ('+v.note+')':'')});
 else if(v.type==='comp'&&v.ref===d)o.push({e,k:'trab',v,t:'Trabalhou no feriado'})});
@@ -544,8 +562,8 @@ function ferias(){
 function equipe(){
 const ed=S.emps.find(e=>e.id===editId)||{name:'',role:'',color:COLORS[S.emps.length%COLORS.length],offs:['',''],sun:{m:'none',ref:'',n:3}};
 const wo=v=>'<option value="">Nenhuma</option>'+[0,1,2,3,4,5,6].map(i=>`<option value="${i}"${String(v)===String(i)?' selected':''}>${i===0?'Domingo':DS[i]}</option>`).join('');
-$('#eq').innerHTML=`<h2>${editId?'Editar colaborador':'Novo colaborador'}</h2><div class="fg"><label>Nome<input id="en" value="${esc(ed.name)}" autocomplete="off"></label><label>Setor ou cargo<input id="er" value="${esc(ed.role)}" autocomplete="off"></label><label>1ª folga semanal<select id="eo">${wo(ed.offs[0])}</select></label><label>2ª folga semanal<select id="eo2">${wo(ed.offs[1])}</select></label><label id="sunCfg"${(ed.offs||[]).some(x=>x!==''&&+x===0)?' hidden':''}>Folga aos domingos<select id="es"><option value="none"${ed.sun.m==='none'?' selected':''}>Sem folga de domingo</option><option value="cycle"${ed.sun.m==='cycle'?' selected':''}>Folga alternada</option></select></label><label class="sc"${ed.sun.m==='cycle'&&!((ed.offs||[]).some(x=>x!==''&&+x===0))?'':' hidden'}>Regime de domingos<select id="esn"><option value="2"${+ed.sun.n===2?' selected':''}>Trabalha 1 domingo e folga 1</option><option value="3"${+ed.sun.n===3?' selected':''}>Trabalha 2 domingos e folga 1</option></select></label><label class="sc"${ed.sun.m==='cycle'&&!((ed.offs||[]).some(x=>x!==''&&+x===0))?'':' hidden'}>Primeiro domingo de folga<input type="date" id="esr" value="${esc(ed.sun.ref)}"></label><label>Cor<input type="color" id="ec" value="${esc(ed.color)}"></label></div><p class="al e" id="em" role="status"></p><div class="act"><button class="btn" data-act="saveemp">Salvar colaborador</button>${editId?'<button class="btn ghost" data-act="canc">Cancelar</button>':''}</div>`;
-$('#el').innerHTML=S.emps.length?S.emps.map(e=>`<li><b class="dot" style="background:${esc(e.color)}"></b><span><strong>${esc(e.name)}</strong><br><small class="mu">${esc(e.role||'Sem setor')}${vacationOn(e.id,today)?' · EM FÉRIAS':''}${(e.offs||[]).filter(x=>x!=='').length?', folga '+e.offs.filter(x=>x!=='').map(x=>DS[x]).join(' e '):''}${e.sun&&e.sun.m==='cycle'?', domingo 1 a cada '+e.sun.n:e.sun&&e.sun.m==='all'?', todo domingo':''}</small></span><button class="lk" data-act="edemp" data-id="${e.id}">Editar</button><button class="lk rm" data-act="delemp" data-id="${e.id}">${delArm===e.id?'Confirmar exclusão':'Excluir'}</button></li>`).join(''):'<li class="mu">Cadastre o primeiro colaborador ao lado.</li>';
+$('#eq').innerHTML=`<h2>${editId?'Editar colaborador':'Novo colaborador'}</h2><div class="fg"><label>Nome<input id="en" value="${esc(ed.name)}" autocomplete="off"></label><label>Setor ou cargo<input id="er" value="${esc(ed.role)}" autocomplete="off"></label><label>Tipo de escala<select id="scheduleType"><option value="weekly"${ed.scheduleType==='12x36'?'':' selected'}>Escala semanal (atual)</option><option value="12x36"${ed.scheduleType==='12x36'?' selected':''}>12x36 · trabalha um dia e descansa no outro</option></select></label><label id="scheduleStartWrap"${ed.scheduleType==='12x36'?'':' hidden'}>Data do primeiro dia de trabalho<input type="date" id="scheduleStart" value="${esc(ed.scheduleStart||'')}"></label><label id="scheduleTimeWrap"${ed.scheduleType==='12x36'?'':' hidden'}>Horário de início do primeiro plantão<input type="time" id="scheduleTime" value="${esc(ed.scheduleTime||'07:00')}"></label><label id="weeklyFields1"${ed.scheduleType==='12x36'?' hidden':''}>1ª folga semanal<select id="eo">${wo(ed.offs[0])}</select></label><label id="weeklyFields2"${ed.scheduleType==='12x36'?' hidden':''}>2ª folga semanal<select id="eo2">${wo(ed.offs[1])}</select></label><label id="sunCfg"${ed.scheduleType==='12x36'||(ed.offs||[]).some(x=>x!==''&&+x===0)?' hidden':''}>Folga aos domingos<select id="es"><option value="none"${ed.sun.m==='none'?' selected':''}>Sem folga de domingo</option><option value="cycle"${ed.sun.m==='cycle'?' selected':''}>Folga alternada</option></select></label><label class="sc"${ed.scheduleType!=='12x36'&&ed.sun.m==='cycle'&&!((ed.offs||[]).some(x=>x!==''&&+x===0))?'':' hidden'}>Regime de domingos<select id="esn"><option value="2"${+ed.sun.n===2?' selected':''}>Trabalha 1 domingo e folga 1</option><option value="3"${+ed.sun.n===3?' selected':''}>Trabalha 2 domingos e folga 1</option></select></label><label class="sc"${ed.scheduleType!=='12x36'&&ed.sun.m==='cycle'&&!((ed.offs||[]).some(x=>x!==''&&+x===0))?'':' hidden'}>Primeiro domingo de folga<input type="date" id="esr" value="${esc(ed.sun.ref)}"></label><label>Cor<input type="color" id="ec" value="${esc(ed.color)}"></label></div><p class="al e" id="em" role="status"></p><div class="act"><button class="btn" data-act="saveemp">Salvar colaborador</button>${editId?'<button class="btn ghost" data-act="canc">Cancelar</button>':''}</div>`;
+$('#el').innerHTML=S.emps.length?S.emps.map(e=>`<li><b class="dot" style="background:${esc(e.color)}"></b><span><strong>${esc(e.name)}</strong><br><small class="mu">${esc(e.role||'Sem setor')}${e.scheduleType==='12x36'?' · Escala 12x36':(vacationOn(e.id,today)?' · EM FÉRIAS':'')}${e.scheduleType==='12x36'?' · início '+(e.scheduleStart||'não definido'):( (e.offs||[]).filter(x=>x!=='').length?', folga '+e.offs.filter(x=>x!=='').map(x=>DS[x]).join(' e '):'')+(e.sun&&e.sun.m==='cycle'?', domingo 1 a cada '+e.sun.n:e.sun&&e.sun.m==='all'?', todo domingo':'')}</small></span><button class="lk" data-act="edemp" data-id="${e.id}">Editar</button><button class="lk rm" data-act="delemp" data-id="${e.id}">${delArm===e.id?'Confirmar exclusão':'Excluir'}</button></li>`).join(''):'<li class="mu">Cadastre o primeiro colaborador ao lado.</li>';
 $('#hl').innerHTML=`<h2>Feriados</h2><p class="mu" style="margin-top:0">Os feriados nacionais já entram na agenda. Adicione aqui os feriados do seu estado ou município.</p><div class="fg"><label>Data<input type="date" id="hd"></label><label>Nome do feriado<input id="hn" autocomplete="off"></label></div><div class="act"><button class="btn" data-act="addhol">Adicionar feriado</button></div><ul class="ls" style="margin-top:8px">${S.hols.slice().sort((a,b)=>a.date<b.date?-1:1).map((h,i)=>`<li><span><strong>${esc(h.name)}</strong><br><small class="mu">${dm(h.date)}/${h.date.slice(0,4)}</small></span><button class="lk rm" data-act="delhol" data-d="${h.date}" data-n="${esc(h.name)}">Remover</button></li>`).join('')}</ul>`}
 
 function sync(){const c=S.cfg;
@@ -624,8 +642,8 @@ function reportIndividual(){
     let status=off?off.t:workedHoliday?'Trabalhou no feriado':'Trabalho previsto';
     rows.push(`<tr class="${holiday?'holiday':''}"><td>${pad(n)}/${pad(m)} · ${DS[dt.getDay()]}</td><td>${holiday?esc(holiday):'—'}</td><td>${esc(status)}</td></tr>`);
   }
-  const weekly=(emp.offs||[]).filter(x=>x!=='').map(x=>DS[+x]).join(' / ')||'Não definida';
-  const content=`<p><b>Colaborador:</b> ${esc(emp.name)} &nbsp; <b>Setor:</b> ${esc(emp.role||'Não informado')}</p><p><b>Folga semanal configurada:</b> ${esc(weekly)} ${emp.sun&&emp.sun.m==='cycle'?' · Rodízio de domingo: '+(Number(emp.sun.n)===2?'trabalha 1, folga 1':'trabalha 2, folga 1'):emp.sun&&emp.sun.m==='all'?' · Todos os domingos':''}</p><h2>Calendário individual</h2><table><thead><tr><th>Data</th><th>Feriado</th><th>Situação</th></tr></thead><tbody>${rows.join('')}</tbody></table><div class="note">Relatório de organização de escala. Confira os registros antes de utilizar como documento oficial.</div>`;
+  const weekly=emp.scheduleType==='12x36'?'12x36 · trabalha um dia e descansa no outro · início '+(emp.scheduleStart||'não definido')+' às '+(emp.scheduleTime||'07:00'):(emp.offs||[]).filter(x=>x!=='').map(x=>DS[+x]).join(' / ')||'Não definida';
+  const content=`<p><b>Colaborador:</b> ${esc(emp.name)} &nbsp; <b>Setor:</b> ${esc(emp.role||'Não informado')}</p><p><b>Regra de escala:</b> ${esc(weekly)} ${emp.scheduleType!=='12x36'&&emp.sun&&emp.sun.m==='cycle'?' · Rodízio de domingo: '+(Number(emp.sun.n)===2?'trabalha 1, folga 1':'trabalha 2, folga 1'):emp.scheduleType!=='12x36'&&emp.sun&&emp.sun.m==='all'?' · Todos os domingos':''}</p><h2>Calendário individual</h2><table><thead><tr><th>Data</th><th>Feriado</th><th>Situação</th></tr></thead><tbody>${rows.join('')}</tbody></table><div class="note">Relatório de organização de escala. Confira os registros antes de utilizar como documento oficial.</div>`;
   openPrintableReport('Escala individual',emp.name+' · '+MS[m-1]+' de '+y,content);
 }
 function reportHolidays(){
@@ -695,9 +713,12 @@ if(type==='comp'&&(!H(Number(ref.slice(0,4)))[ref]||ref===date))return say('#fm'
 S.evs.push({id:uid(),emp,date,type,ref:type==='comp'?ref:'',note});save();sel=date;cur=new Date(date+'T00:00');agenda();dashboard();break}
 case'dev':S.evs=S.evs.filter(v=>v.id!==D.id);save();agenda();dashboard();break;
 case'saveemp':{const name=$('#en').value.trim();if(!name)return say('#em','Digite o nome do colaborador.');
-const a=$('#eo').value,b=$('#eo2').value,fixedSunday=a==='0'||b==='0',sm=fixedSunday?'none':$('#es').value,sr=$('#esr').value,sn=+$('#esn').value===2?2:3;
+const scheduleType=$('#scheduleType').value;
+let a=editId?(S.emps.find(x=>x.id===editId).offs||['',''])[0]:'',b=editId?(S.emps.find(x=>x.id===editId).offs||['',''])[1]:'',sm=editId?(S.emps.find(x=>x.id===editId).sun||{m:'none'}).m:'none',sr=editId?(S.emps.find(x=>x.id===editId).sun||{}).ref||'':'',sn=editId?+(S.emps.find(x=>x.id===editId).sun||{}).n||3:3;
+if(scheduleType!=='12x36'){a=$('#eo').value;b=$('#eo2').value;const fixedSunday=a==='0'||b==='0';sm=fixedSunday?'none':$('#es').value;sr=$('#esr').value;sn=+$('#esn').value===2?2:3;
 if(sm==='cycle'&&(!sr||new Date(sr+'T00:00').getDay()!==0))return say('#em','Escolha uma data que caia num domingo para marcar a folga.');
-const o={name,role:$('#er').value.trim(),offs:[a,b===a?'':b],sun:{m:sm,ref:sm==='cycle'?sr:'',n:sn},color:$('#ec').value};
+}else if(!$('#scheduleStart').value)return say('#em','Informe a data do primeiro dia de trabalho da escala 12x36.');
+const o={name,role:$('#er').value.trim(),scheduleType,scheduleStart:scheduleType==='12x36'?$('#scheduleStart').value:'',scheduleTime:scheduleType==='12x36'?($('#scheduleTime').value||'07:00'):'',offs:[a,b===a?'':b],sun:{m:sm,ref:sm==='cycle'?sr:'',n:sn},color:$('#ec').value};
 if(editId)Object.assign(S.emps.find(x=>x.id===editId),o);else S.emps.push(Object.assign({id:uid()},o));
 editId=null;save();equipe();agenda();renderReportSelectors();dashboard();break}
 case'canc':editId=null;equipe();break;
@@ -706,7 +727,7 @@ case'delemp':if(delArm===D.id){S.emps=S.emps.filter(x=>x.id!==D.id);S.evs=S.evs.
 case'addhol':{const date=$('#hd').value,name=$('#hn').value.trim();if(!date||!name)return;S.hols.push({date,name});save();equipe();agenda();dashboard();break}
 case'delhol':S.hols=S.hols.filter(h=>!(h.date===D.d&&h.name===D.n));save();equipe();agenda();dashboard();break}});
 
-document.addEventListener('change',e=>{if(e.target.id==='dashPicker'){if(e.target.value){dashSelected=e.target.value;dashboard()}return}if(e.target.id==='eo'||e.target.id==='eo2'){const fixed=$('#eo').value==='0'||$('#eo2').value==='0';$('#sunCfg').hidden=fixed;if(fixed){$('#es').value='none';document.querySelectorAll('.sc').forEach(l=>l.hidden=true)} }if(e.target.id==='es'){const cy=e.target.value==='cycle';document.querySelectorAll('.sc').forEach(l=>l.hidden=!cy);if(cy&&!$('#esr').value){const d=new Date();d.setDate(d.getDate()+(7-d.getDay())%7);$('#esr').value=iso(d)}}if(e.target.id==='ft'){const c=e.target.value==='comp';$('#frw').hidden=!c;$('#fd').value=c?'':sel;$('#fr').value=c?sel:''}});
+document.addEventListener('change',e=>{if(e.target.id==='scheduleType'){const isCycle=e.target.value==='12x36';$('#scheduleStartWrap').hidden=!isCycle;$('#scheduleTimeWrap').hidden=!isCycle;$('#weeklyFields1').hidden=isCycle;$('#weeklyFields2').hidden=isCycle;$('#sunCfg').hidden=isCycle||($('#eo').value==='0'||$('#eo2').value==='0');document.querySelectorAll('.sc').forEach(l=>l.hidden=isCycle||$('#es').value!=='cycle');return}if(e.target.id==='dashPicker'){if(e.target.value){dashSelected=e.target.value;dashboard()}return}if(e.target.id==='eo'||e.target.id==='eo2'){const fixed=$('#eo').value==='0'||$('#eo2').value==='0';$('#sunCfg').hidden=fixed;if(fixed){$('#es').value='none';document.querySelectorAll('.sc').forEach(l=>l.hidden=true)} }if(e.target.id==='es'){const cy=e.target.value==='cycle';document.querySelectorAll('.sc').forEach(l=>l.hidden=!cy);if(cy&&!$('#esr').value){const d=new Date();d.setDate(d.getDate()+(7-d.getDay())%7);$('#esr').value=iso(d)}}if(e.target.id==='ft'){const c=e.target.value==='comp';$('#frw').hidden=!c;$('#fd').value=c?'':sel;$('#fr').value=c?sel:''}});
 document.addEventListener('input',e=>{const id=e.target.id,v=e.target.value,c=S.cfg;
 if(id==='te'||id==='tl')return calc();
 const t=tm(v);
