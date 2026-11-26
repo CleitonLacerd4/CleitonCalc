@@ -192,7 +192,15 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
 .reporter-fields .fg{grid-template-columns:repeat(2,minmax(0,1fr))}
 .print-heading p{margin:4px 0 12px}
 @media(max-width:420px){.reporter-fields .fg{grid-template-columns:1fr}}
-\n</style>
+\n
+/* Descanso interjornada de 11 horas — aba Ponto */
+.rest-setting{display:flex;align-items:center;gap:10px;margin:12px 0 4px;padding:11px 13px;border:1px solid var(--ln);border-radius:11px;color:var(--ink);font-weight:700}
+.rest-setting input{width:20px;height:20px;min-height:20px;margin:0;flex:0 0 auto;accent-color:var(--br)}
+.rest-result{border-color:color-mix(in srgb,var(--br) 55%,var(--ln))}
+.rest-result .big{color:var(--br)}
+@media print{#ponto .rest-setting{display:none!important}}
+
+</style>
 </head>
 <body>
 <div class="wrap">
@@ -307,6 +315,7 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
         <label>Volta do intervalo<input type="time" id="tr"></label>
         <label>Saída<input type="time" id="tf"></label>
       </div>
+      <label class="rest-setting"><input type="checkbox" id="rest11Enabled" checked> Considerar descanso mínimo de 11 horas entre jornadas</label>
       <div class="print-heading"><h2>Relatório de horários — CleitonCalc</h2><p><b>Gerado em:</b> <span id="pointPrintGeneratedAt"></span></p><p><b>Emitido por:</b> <span id="printReporterName">Não informado</span> &nbsp; <b>Setor:</b> <span id="printReporterSector">Não informado</span></p></div>
       <div class="res">
         <div class="r"><small>Sair para o intervalo até</small><div class="big" id="rA">--:--</div></div>
@@ -315,6 +324,7 @@ footer{text-align:center;color:var(--mu);font-size:.9rem;padding:22px 14px 8px}
         <div class="r am"><small>Limite máximo configurado</small><div class="big" id="rD">--:--</div></div>
         <div class="r"><small>Tempo trabalhado (real)</small><div class="big" id="rE">--:--</div></div>
         <div class="r"><small>Extra realizado / saldo</small><div class="big" id="rF">--:--</div></div>
+        <div class="r rest-result"><small>Próxima entrada após 11h de descanso</small><div class="big" id="rG">--:--</div></div>
       </div>
       <div id="al" aria-live="polite"></div>
       <div class="summary" id="summary" hidden>
@@ -440,9 +450,9 @@ const tm=v=>{const m=/^(\d{1,2}):(\d{2})$/.exec(v||'');return m?+m[1]*60+ +m[2]:
 const fm=n=>{n=((Math.round(n)%1440)+1440)%1440;return pad(Math.floor(n/60))+':'+pad(n%60)};
 const dur=n=>Math.floor(n/60)+':'+pad(n%60);
 const ini=n=>(String(n).trim()[0]||'?').toUpperCase();
-let S={emps:[],evs:[],hols:[],vacations:[],reporter:{name:'',sector:''},cfg:{work:440,lunch:60,maxFirst:360,extra:120}};
+let S={emps:[],evs:[],hols:[],vacations:[],reporter:{name:'',sector:''},cfg:{work:440,lunch:60,maxFirst:360,extra:120,rest11:true}};
 try{const r=JSON.parse(localStorage.getItem(KEY));if(r)S=Object.assign(S,r)}catch(e){}
-const mig=()=>{if(!Array.isArray(S.emps))S.emps=[];if(!Array.isArray(S.evs))S.evs=[];if(!Array.isArray(S.hols))S.hols=[];if(!Array.isArray(S.vacations))S.vacations=[];if(!S.reporter||typeof S.reporter!=='object')S.reporter={name:'',sector:''};S.emps.forEach(e=>{if(!e.offs){const o=String(e.off==null?'':e.off);e.offs=[o==='0'?'':o,''];e.sun={m:o==='0'?'all':'none',ref:'',n:3};delete e.off}if(!e.sun)e.sun={m:'none',ref:'',n:3}})};mig();
+const mig=()=>{if(!S.cfg||typeof S.cfg!=='object')S.cfg={};S.cfg=Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},S.cfg);if(!Array.isArray(S.emps))S.emps=[];if(!Array.isArray(S.evs))S.evs=[];if(!Array.isArray(S.hols))S.hols=[];if(!Array.isArray(S.vacations))S.vacations=[];if(!S.reporter||typeof S.reporter!=='object')S.reporter={name:'',sector:''};S.emps.forEach(e=>{if(!e.offs){const o=String(e.off==null?'':e.off);e.offs=[o==='0'?'':o,''];e.sun={m:o==='0'?'all':'none',ref:'',n:3};delete e.off}if(!e.sun)e.sun={m:'none',ref:'',n:3}})};mig();
 let tab='dashboard',cur=new Date(),sel=iso(new Date()),dashSelected=iso(new Date()),editId=null,delArm=null,hm={},tmr=null,dbDoc=null;
 let agendaMode='initials';try{agendaMode=localStorage.getItem('cleitoncalc.agendaMode')||'initials'}catch(e){}
 const today=iso(new Date());
@@ -666,6 +676,7 @@ $('#hl').innerHTML=`<h2>Feriados</h2><p class="mu" style="margin-top:0">Os feria
 
 let viewMode='simple';
 function sync(){const c=S.cfg;
+  if($('#rest11Enabled'))$('#rest11Enabled').checked=c.rest11!==false;
   document.querySelectorAll('#cw button').forEach(b=>b.classList.toggle('on',+b.dataset.w===c.work));
   document.querySelectorAll('#cl button').forEach(b=>b.classList.toggle('on',+b.dataset.l===c.lunch));
   for(const [id,v] of [['wk',fm(c.work)],['mf',fm(c.maxFirst)],['ex',fm(c.extra)],['lu',c.lunch]])
@@ -673,8 +684,9 @@ function sync(){const c=S.cfg;
 }
 function calc(){
   const c=S.cfg,en=tm($('#te').value),ls=tm($('#tl').value),ret=tm($('#tr').value),fd=tm($('#tf').value),al=[];
-  let lo=null,vo=null,ex=null,lim=null,validLunch=false,actual=null,balance=null;
+  let lo=null,vo=null,ex=null,lim=null,validLunch=false,actual=null,balance=null,restStart=null;
   if(en!=null){lo=en+c.maxFirst;ex=en+c.work+c.lunch;lim=ex+c.extra}
+  if(fd!=null&&c.rest11!==false)restStart=fd+660;
   if(en!=null&&ls!=null){
     if(ls<=en)al.push(['e','A saída para o almoço precisa ser depois da entrada, no mesmo dia.']);
     else if(ls-en>c.maxFirst)al.push(['e',`O intervalo foi informado após ${dur(c.maxFirst)} de trabalho. O horário-limite calculado era ${fm(lo)}.`]);
@@ -702,6 +714,7 @@ function calc(){
   for(const [id,v] of [['#rA',lo],['#rB',vo],['#rC',ex],['#rD',lim]])$(id).textContent=v==null?'--:--':fm(v);
   $('#rE').textContent=actual==null?'--:--':dur(actual);
   $('#rF').textContent=balance==null?'--:--':(balance>=0?'+':'−')+dur(Math.abs(balance));
+  $('#rG').textContent=restStart==null?'--:--':fm(restStart)+(restStart>=1440?' (dia seguinte)':'');
   $('#al').innerHTML=al.map(([k,t])=>`<p class="al ${k}">${esc(t)}</p>`).join('');
   $('#summary').hidden=en==null;
   $('#sumWork').textContent=en==null?'--':dur(c.work);
@@ -735,7 +748,7 @@ function resultText(){
     `Saída para o intervalo: ${ls||'não informada'}`,`Volta do intervalo (informada ou calculada): ${$('#rB').textContent}`,
     `Saída ideal: ${$('#rC').textContent}`,`Limite máximo configurado: ${$('#rD').textContent}`,
     `Saída real: ${fd||'não informada'}`,`Tempo trabalhado real: ${$('#rE').textContent}`,
-    `Extra realizado / saldo: ${$('#rF').textContent}`,`Jornada diária configurada: ${dur(S.cfg.work)}`,
+    `Extra realizado / saldo: ${$('#rF').textContent}`,`Próxima entrada após 11h de descanso: ${S.cfg.rest11===false?'Opção desativada':$('#rG').textContent}`,`Jornada diária configurada: ${dur(S.cfg.work)}`,
     `Intervalo configurado: ${dur(S.cfg.lunch)}`,'','Cálculo de apoio; confirme as regras com a coordenação.'].join('\\n');
 }
 
@@ -886,6 +899,9 @@ case'addhol':{const date=$('#hd').value,name=$('#hn').value.trim();if(!date||!na
 case'delhol':S.hols=S.hols.filter(h=>!(h.date===D.d&&h.name===D.n));save();equipe();agenda();dashboard();break}});
 
 document.addEventListener('change',e=>{if(e.target.id==='scheduleType'){const isCycle=e.target.value==='12x36';$('#scheduleStartWrap').hidden=!isCycle;$('#scheduleTimeWrap').hidden=!isCycle;$('#weeklyFields1').hidden=isCycle;$('#weeklyFields2').hidden=isCycle;$('#sunCfg').hidden=isCycle||($('#eo').value==='0'||$('#eo2').value==='0');document.querySelectorAll('.sc').forEach(l=>l.hidden=isCycle||$('#es').value!=='cycle');return}if(e.target.id==='dashPicker'){if(e.target.value){dashSelected=e.target.value;dashboard()}return}if(e.target.id==='dashFilter'){dashboard();return}if(e.target.id==='eo'||e.target.id==='eo2'){const fixed=$('#eo').value==='0'||$('#eo2').value==='0';$('#sunCfg').hidden=fixed;if(fixed){$('#es').value='none';document.querySelectorAll('.sc').forEach(l=>l.hidden=true)} }if(e.target.id==='es'){const cy=e.target.value==='cycle';document.querySelectorAll('.sc').forEach(l=>l.hidden=!cy);if(cy&&!$('#esr').value){const d=new Date();d.setDate(d.getDate()+(7-d.getDay())%7);$('#esr').value=iso(d)}}if(e.target.id==='ft'){const c=e.target.value==='comp';$('#frw').hidden=!c;$('#fd').value=c?'':sel;$('#fr').value=c?sel:''}});
+document.addEventListener('change',e=>{
+  if(e.target.id==='rest11Enabled'){S.cfg.rest11=e.target.checked;save();calc()}
+});
 document.addEventListener('input',e=>{
   const id=e.target.id;
   if(id==='reporterName'||id==='pointReporterName'){S.reporter.name=e.target.value;save();syncReporterFields();return}
@@ -926,7 +942,7 @@ $('#backupFile').addEventListener('change',async e=>{
     if(!data||!Array.isArray(data.emps)||!Array.isArray(data.evs)||!Array.isArray(data.hols)||!data.cfg)
       throw new Error('Formato de backup inválido.');
     if(!confirm('Restaurar este backup substituirá os dados atuais do CleitonCalc. Deseja continuar?'))return;
-    S={emps:data.emps,evs:data.evs,hols:data.hols,vacations:Array.isArray(data.vacations)?data.vacations:[],cfg:Object.assign({work:440,lunch:60,maxFirst:360,extra:120},data.cfg)};
+    S={emps:data.emps,evs:data.evs,hols:data.hols,vacations:Array.isArray(data.vacations)?data.vacations:[],cfg:Object.assign({work:440,lunch:60,maxFirst:360,extra:120,rest11:true},data.cfg)};
     mig();hm={};editId=null;save();render();
     $('#backupMsg').textContent='Backup restaurado com sucesso.';
   }catch(err){$('#backupMsg').textContent='Não foi possível restaurar: '+err.message;}
